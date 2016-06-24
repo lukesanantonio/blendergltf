@@ -297,7 +297,7 @@ def togl(matrix):
     return [i for col in matrix.col for i in col]
 
 
-def export_cameras(cameras):
+def export_cameras(cameras, ctx):
     def export_camera(camera):
         if camera.type == 'ORTHO':
             return {
@@ -382,7 +382,7 @@ def export_materials(materials, shaders, programs, techniques, ctx):
     return exp_materials
 
 
-def export_meshes(meshes, skinned_meshes):
+def export_meshes(meshes, skinned_meshes, ctx):
     def export_mesh(me):
         # glTF data
         gltf_mesh = {
@@ -501,7 +501,7 @@ def export_meshes(meshes, skinned_meshes):
     return {me.name: export_mesh(me) for me in meshes if me.users != 0}
 
 
-def export_skins(skinned_meshes):
+def export_skins(skinned_meshes, ctx):
     def export_skin(obj):
         gltf_skin = {
             'bindShapeMatrix': togl(mathutils.Matrix.Identity(4)),
@@ -529,7 +529,7 @@ def export_skins(skinned_meshes):
     return {'{}_skin'.format(mesh_name): export_skin(obj) for mesh_name, obj in skinned_meshes.items()}
 
 
-def export_lights(lamps):
+def export_lights(lamps, ctx):
     def export_light(light):
         def calc_att():
             kl = 0
@@ -660,7 +660,7 @@ def export_nodes(objects, skinned_meshes):
     return gltf_nodes
 
 
-def export_scenes(scenes):
+def export_scenes(scenes, ctx):
     def export_scene(scene):
         return {
             'nodes': [ob.name for ob in scene.objects if ob.parent is None],
@@ -760,7 +760,7 @@ def _can_object_use_action(obj, action):
     return False
 
 
-def export_actions(actions):
+def export_actions(actions, ctx):
     def export_action(obj, action):
         params = []
 
@@ -869,22 +869,23 @@ def export_gltf(scene_delta, **ctx):
 
     gltf = {
         'asset': {'version': '1.0'},
-        'cameras': export_cameras(scene_delta.get('cameras', [])),
+        'cameras': export_cameras(scene_delta.get('cameras', []), ctx),
         'extras': {
-            'lights' : export_lights(scene_delta.get('lamps', [])),
-            'actions': export_actions(scene_delta.get('actions', [])),
+            'lights' : export_lights(scene_delta.get('lamps', []), ctx),
+            'actions': export_actions(scene_delta.get('actions', []), ctx),
         },
         'images': export_images(scene_delta.get('images', [])),
         'materials': export_materials(scene_delta.get('materials', []),
                                       shaders, programs, techniques, ctx),
         'nodes': export_nodes(scene_delta.get('objects', []), skinned_meshes),
         # Make sure meshes come after nodes to detect which meshes are skinned
-        'meshes': export_meshes(scene_delta.get('meshes', []), skinned_meshes),
-        'skins': export_skins(skinned_meshes),
+        'meshes': export_meshes(scene_delta.get('meshes', []), skinned_meshes,
+                                ctx),
+        'skins': export_skins(skinned_meshes, ctx),
         'programs': programs,
         'samplers': {'default':{}},
         'scene': bpy.context.scene.name,
-        'scenes': export_scenes(scene_delta.get('scenes', [])),
+        'scenes': export_scenes(scene_delta.get('scenes', []), ctx),
         'shaders': shaders,
         'techniques': techniques,
         'textures': export_textures(scene_delta.get('textures', [])),
