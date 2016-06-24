@@ -19,7 +19,6 @@ GL_LUMINANCE_ALPHA = 6410
 GL_SRGB = 0x8C40
 GL_SRGB_ALPHA = 0x8C42
 
-
 EXPORT_SHADERS = False
 EMBED_IMAGES = False
 class Vertex:
@@ -404,7 +403,6 @@ def export_meshes(meshes, skinned_meshes, ctx):
 
         # Vertex data
 
-        #vert_list = { Vertex(me, loop) : 0 for loop in me.loops}.keys()
         vert_list = [Vertex(me, loop) for loop in me.loops]
         num_verts = len(vert_list)
         va = buf.add_view(vertex_size * num_verts, Buffer.ARRAY_BUFFER)
@@ -439,21 +437,35 @@ def export_meshes(meshes, skinned_meshes, ctx):
                     jdata[(i * 4) + j] = joints[j]
                     wdata[(i * 4) + j] = weights[j]
 
+        # For each material, make an empty primitive set.
         prims = {ma.name if ma else '': [] for ma in me.materials}
         if not prims:
             prims = {'': []}
 
         # Index data
+        # Map loop indices to vertices
         vert_dict = {i : v for v in vert_list for i in v.loop_indices}
+
+        max_vert_index = 0
         for poly in me.polygons:
-            first = poly.loop_start
+            # Find the primitive that this polygon ought to belong to (by
+            # material).
             if len(me.materials) == 0:
                 prim = prims['']
             else:
                 mat = me.materials[poly.material_index]
                 prim = prims[mat.name if mat else '']
-            indices = [vert_dict[i].index for i in range(first, first+poly.loop_total)]
 
+            # Build indices to vertices using the vertex that is associated with
+            # the loops that this polygon consists of.
+            indices = [vert_dict[i].index for i in poly.loop_indices]
+
+            # Record the maximum index.
+            for i in indices:
+                if i > max_vert_index:
+                    max_vert_index = i
+
+            # Triangulate each polygon if necessary
             if poly.loop_total == 3:
                 prim += indices
             elif poly.loop_total > 3:
@@ -463,9 +475,12 @@ def export_meshes(meshes, skinned_meshes, ctx):
                 raise RuntimeError("Invalid polygon with {} vertexes.".format(poly.loop_total))
 
         for mat, prim in prims.items():
+            # For each primitive set add an indice buffer and accessor.
+            # TODO (Maybe): Use a single buffer view for all elements.
+
             ity = Buffer.UNSIGNED_SHORT
             istride = 2
-            if len(prim) > 65535:
+            if max_vert_index > 65535:
                 ity = Buffer.UNSIGNED_INT
                 istride = 4
 
