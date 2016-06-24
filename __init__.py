@@ -55,6 +55,12 @@ else:
                 options={'HIDDEN'},
                 )
 
+        apply_modifiers = BoolProperty(
+            name="Apply modifiers",
+            description="Apply modifiers",
+            default=True,
+            )
+
         use_redcrane_extensions = BoolProperty(
             name="Use Redcrane extensions / techniques",
             description="Use redcrane techniques",
@@ -73,15 +79,42 @@ else:
                 'lamps': bpy.data.lamps,
                 'images': bpy.data.images,
                 'materials': bpy.data.materials,
-                'meshes': bpy.data.meshes,
-                'objects': bpy.data.objects,
                 'scenes': bpy.data.scenes,
                 'textures': bpy.data.textures,
             }
+
+            scene['objects'] = []
+            scene['meshes'] = []
+
+            # Mapping from object to mesh
+            scene['obj_meshes'] = {}
+
+            for obj in bpy.data.objects:
+                if obj.type != 'MESH': continue
+
+                new_mesh = obj.to_mesh(
+                    context.scene, keywords['apply_modifiers'], 'PREVIEW'
+                )
+                scene['meshes'].append(new_mesh)
+
+                # Right now this will do, but this script requires some major
+                # restructuring because we want to be able to reference a mesh
+                # independently from its containing object. The objects should
+                # only define the node hierarchy. We can fix this by adding
+                # another layer of indirection that maps objects to their usable
+                # meshes.
+                scene['obj_meshes'][obj] = new_mesh
+                scene['objects'].append(obj)
+
             gltf = blendergltf.export_gltf(scene, **keywords)
 
             with open(self.filepath, 'w') as fout:
                 json.dump(gltf, fout, indent=4, sort_keys=True, check_circular=False)
+
+            # Clean up meshes
+            for mesh in scene['meshes']:
+                bpy.data.meshes.remove(mesh)
+
             return {'FINISHED'}
 
 

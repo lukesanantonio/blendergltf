@@ -498,7 +498,7 @@ def export_meshes(meshes, skinned_meshes, ctx):
             g_buffers.append(skin_buf)
         return gltf_mesh
 
-    return {me.name: export_mesh(me) for me in meshes if me.users != 0}
+    return {me.name: export_mesh(me) for me in meshes}
 
 
 def export_skins(skinned_meshes, ctx):
@@ -589,7 +589,7 @@ def export_lights(lamps, ctx):
     return gltf
 
 
-def export_nodes(objects, skinned_meshes):
+def export_nodes(objects, skinned_meshes, obj_meshes, ctx):
     def export_physics(obj):
         rb = obj.rigid_body
         physics =  {
@@ -612,7 +612,7 @@ def export_nodes(objects, skinned_meshes):
         }
 
         if obj.type == 'MESH':
-            ob['meshes'] = [obj.data.name]
+            ob['meshes'] = [obj_meshes[obj].name]
             if obj.find_armature():
                 ob['skeletons'] = ['{}_root'.format(obj.find_armature().data.name)]
                 skinned_meshes[obj.data.name] = obj
@@ -877,7 +877,8 @@ def export_gltf(scene_delta, **ctx):
         'images': export_images(scene_delta.get('images', [])),
         'materials': export_materials(scene_delta.get('materials', []),
                                       shaders, programs, techniques, ctx),
-        'nodes': export_nodes(scene_delta.get('objects', []), skinned_meshes),
+        'nodes': export_nodes(scene_delta.get('objects', []), skinned_meshes,
+                              scene_delta.get('obj_meshes', []), ctx),
         # Make sure meshes come after nodes to detect which meshes are skinned
         'meshes': export_meshes(scene_delta.get('meshes', []), skinned_meshes,
                                 ctx),
