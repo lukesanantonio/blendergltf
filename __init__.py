@@ -34,6 +34,7 @@ else:
     import bpy
     from bpy.props import (
             StringProperty,
+            BoolProperty
             )
     from bpy_extras.io_utils import (
             ExportHelper,
@@ -54,9 +55,18 @@ else:
                 options={'HIDDEN'},
                 )
 
+        use_redcrane_extensions = BoolProperty(
+            name="Use Redcrane extensions / techniques",
+            description="Use redcrane techniques",
+            default=False,
+            )
+
         check_extension = True
 
         def execute(self, context):
+
+            keywords = self.as_keywords(ignore=("filter_glob",))
+
             scene = {
                 'actions': bpy.data.actions,
                 'camera': bpy.data.cameras,
@@ -68,7 +78,8 @@ else:
                 'scenes': bpy.data.scenes,
                 'textures': bpy.data.textures,
             }
-            gltf = blendergltf.export_gltf(scene)
+            gltf = blendergltf.export_gltf(scene, **keywords)
+
             with open(self.filepath, 'w') as fout:
                 json.dump(gltf, fout, indent=4, sort_keys=True, check_circular=False)
             return {'FINISHED'}

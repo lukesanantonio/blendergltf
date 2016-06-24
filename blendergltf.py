@@ -323,19 +323,32 @@ def export_cameras(cameras):
     return {camera.name: export_camera(camera) for camera in cameras}
 
 
-def export_materials(materials, shaders, programs, techniques):
+def export_materials(materials, shaders, programs, techniques, ctx):
     def export_material(material):
-        return {
+        ret = {
                 'values': {
                     'diffuse': list((material.diffuse_color * material.diffuse_intensity)[:]) + [material.alpha],
                     'specular': list((material.specular_color * material.specular_intensity)[:]) + [material.specular_alpha],
                     'emission': list((material.diffuse_color * material.emit)[:]) + [material.alpha],
                     'ambient': [material.ambient] * 4,
                     'shininess': material.specular_hardness,
-                    'textures': [ts.texture.name for ts in material.texture_slots if ts and ts.texture.type == 'IMAGE'],
-                    'uv_layers': [ts.uv_layer for ts in material.texture_slots if ts]
                 }
             }
+
+        if ctx.get("use_redcrane_extensions", False) == True:
+            ret['technique'] = 'cel_solid'
+            # If there are any image textures that are being used
+            use_cel_texture = False
+            for slot in material.texture_slots:
+                if slot and slot.texture.type == 'IMAGE':
+                    use_cel_texture = True
+
+            # Only use a textured technique if textures were exported
+            if use_cel_texture and ctx.get("export_textures", True) == True:
+                ret['technique'] = 'cel_texture'
+
+        return ret
+
     exp_materials = {}
     for material in materials:
         exp_materials[material.name] = export_material(material)
@@ -846,7 +859,7 @@ def export_actions(actions):
     return gltf_actions
 
 
-def export_gltf(scene_delta):
+def export_gltf(scene_delta, **ctx):
     global g_buffers
 
     shaders = {}
@@ -863,7 +876,7 @@ def export_gltf(scene_delta):
         },
         'images': export_images(scene_delta.get('images', [])),
         'materials': export_materials(scene_delta.get('materials', []),
-            shaders, programs, techniques),
+                                      shaders, programs, techniques, ctx),
         'nodes': export_nodes(scene_delta.get('objects', []), skinned_meshes),
         # Make sure meshes come after nodes to detect which meshes are skinned
         'meshes': export_meshes(scene_delta.get('meshes', []), skinned_meshes),
