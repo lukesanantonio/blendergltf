@@ -484,8 +484,12 @@ def export_meshes(meshes, skinned_meshes, ctx):
                 'mode': 4,
                 'material': mat,
             }
-            for i, v in enumerate(tdata):
-                gltf_prim['attributes']['TEXCOORD_' + me.uv_layers[i].name] = v.name
+
+            # If we weren't asked to export textures, don't bother exporting
+            # texturing coordinates
+            if ctx['export_textures'] == True:
+                for i, v in enumerate(tdata):
+                    gltf_prim['attributes']['TEXCOORD_' + str(i)] = v.name
 
             if is_skinned:
                 gltf_prim['attributes']['JOINT'] = jdata.name
@@ -690,7 +694,7 @@ def export_buffers():
     return gltf
 
 
-def export_images(images):
+def export_images(images, ctx):
     def export_image(image):
         if EMBED_IMAGES:
             pixels = bytearray([int(p * 255) for p in image.pixels])
@@ -704,7 +708,7 @@ def export_images(images):
     return {image.name: export_image(image) for image in images}
 
 
-def export_textures(textures):
+def export_textures(textures, ctx):
     def export_texture(texture):
         gltf_texture = {
             'sampler' : 'default',
@@ -735,7 +739,8 @@ def export_textures(textures):
         return gltf_texture
 
     return {texture.name: export_texture(texture) for texture in textures
-            if type(texture) == bpy.types.ImageTexture and len(texture.users_material) > 0}
+            if type(texture) == bpy.types.ImageTexture and texture.image and
+            texture.type == 'IMAGE' and len(texture.users_material) > 0}
 
 
 _path_map = {
@@ -874,7 +879,6 @@ def export_gltf(scene_delta, **ctx):
             'lights' : export_lights(scene_delta.get('lamps', []), ctx),
             'actions': export_actions(scene_delta.get('actions', []), ctx),
         },
-        'images': export_images(scene_delta.get('images', [])),
         'materials': export_materials(scene_delta.get('materials', []),
                                       shaders, programs, techniques, ctx),
         'nodes': export_nodes(scene_delta.get('objects', []), skinned_meshes,
@@ -884,16 +888,19 @@ def export_gltf(scene_delta, **ctx):
                                 ctx),
         'skins': export_skins(skinned_meshes, ctx),
         'programs': programs,
-        'samplers': {'default':{}},
         'scene': bpy.context.scene.name,
         'scenes': export_scenes(scene_delta.get('scenes', []), ctx),
         'shaders': shaders,
         'techniques': techniques,
-        'textures': export_textures(scene_delta.get('textures', [])),
 
         # TODO
         'animations': {},
     }
+
+    if ctx.get('export_textures', True) == True:
+        gltf['samplers'] = {'default':{}}
+        gltf['images'] = export_images(scene_delta.get('images', []), ctx)
+        gltf['textures'] = export_textures(scene_delta.get('textures', []), ctx)
 
     # Retroactively add skins attribute to nodes
     for mesh_name, obj in skinned_meshes.items():

@@ -67,6 +67,11 @@ else:
             default=False,
             )
 
+        export_textures = BoolProperty(
+            name="Export images / textures",
+            description="Export textures and use texture techniques",
+            default=True)
+
         check_extension = True
 
         def execute(self, context):
