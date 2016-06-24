@@ -38,12 +38,17 @@ else:
             )
     from bpy_extras.io_utils import (
             ExportHelper,
+            orientation_helper_factory,
+            axis_conversion
             )
 
     from . import blendergltf
 
+    GLTFOrientationHelper = orientation_helper_factory(
+        "GLTFOrientationHelper", axis_forward='-Z', axis_up='Y'
+    )
 
-    class ExportGLTF(bpy.types.Operator, ExportHelper):
+    class ExportGLTF(bpy.types.Operator, ExportHelper, GLTFOrientationHelper):
         """Save a Khronos glTF File"""
 
         bl_idname = "export_scene.gltf"
@@ -94,12 +99,24 @@ else:
             # Mapping from object to mesh
             scene['obj_meshes'] = {}
 
+            global_matrix = axis_conversion(to_forward=self.axis_forward,
+                                            to_up=self.axis_up).to_4x4()
+
             for obj in bpy.data.objects:
                 if obj.type != 'MESH': continue
 
                 new_mesh = obj.to_mesh(
                     context.scene, keywords['apply_modifiers'], 'PREVIEW'
                 )
+
+                inv_world_mat = obj.matrix_world.copy()
+                inv_world_mat.invert()
+
+                # Transform the mesh (think: object coordinates) from mesh
+                # space to world space, then converted-axis space and then back
+                # to model space.
+                new_mesh.transform(inv_world_mat * global_matrix * obj.matrix_world)
+
                 scene['meshes'].append(new_mesh)
 
                 # Right now this will do, but this script requires some major
