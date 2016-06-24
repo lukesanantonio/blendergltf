@@ -350,17 +350,30 @@ def export_cameras(cameras):
 
 def export_materials(settings, materials, shaders, programs, techniques):
     def export_material(material):
-        return {
+        ret = {
                 'values': {
                     'diffuse': list((material.diffuse_color * material.diffuse_intensity)[:]) + [material.alpha],
                     'specular': list((material.specular_color * material.specular_intensity)[:]) + [material.specular_alpha],
                     'emission': list((material.diffuse_color * material.emit)[:]) + [material.alpha],
                     'ambient': [material.ambient] * 4,
                     'shininess': material.specular_hardness,
-                    'textures': [ts.texture.name for ts in material.texture_slots if ts and ts.texture.type == 'IMAGE'],
-                    'uv_layers': [ts.uv_layer for ts in material.texture_slots if ts]
                 }
             }
+
+        if settings['use_redcrane_extensions'] == True:
+            ret['technique'] = 'cel_solid'
+            # If there are any image textures that are being used
+            use_cel_texture = False
+            for slot in material.texture_slots:
+                if slot and slot.texture.type == 'IMAGE':
+                    use_cel_texture = True
+
+            # Only use a textured technique if textures were exported
+            if use_cel_texture and settings['export_textures'] == True:
+                ret['technique'] = 'cel_texture'
+
+        return ret
+
     exp_materials = {}
     for material in materials:
         exp_materials[material.name] = export_material(material)

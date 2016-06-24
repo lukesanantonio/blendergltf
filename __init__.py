@@ -80,6 +80,12 @@ else:
             default=True
             )
 
+        use_redcrane_extensions = BoolProperty(
+            name="Use Redcrane extensions / techniques",
+            description="Use redcrane techniques",
+            default=False,
+            )
+
         def execute(self, context):
             scene = {
                 'actions': bpy.data.actions,
