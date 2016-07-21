@@ -131,6 +131,7 @@ else:
                 scene['obj_meshes'][obj] = new_mesh
                 scene['objects'].append(obj)
 
+            settings['report'] = self.report
             gltf = blendergltf.export_gltf(scene, settings)
             with open(self.filepath, 'w') as fout:
                 # Figure out indentation
