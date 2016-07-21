@@ -458,6 +458,8 @@ def export_meshes(meshes, skinned_meshes, ctx):
                     wdata[(i * 4) + j] = weights[j]
 
         # For each material, make an empty primitive set.
+        # This dictionary maps material names to list of indices that form the
+        # part of the mesh that the material should be applied to.
         prims = {ma.name if ma else '': [] for ma in me.materials}
         if not prims:
             prims = {'': []}
@@ -476,8 +478,7 @@ def export_meshes(meshes, skinned_meshes, ctx):
                 mat = me.materials[poly.material_index]
                 prim = prims[mat.name if mat else '']
 
-            # Build indices to vertices using the vertex that is associated with
-            # the loops that this polygon consists of.
+            # Find the vertex index associated with each loop in the polygon
             indices = [vert_dict[i].index for i in poly.loop_indices]
 
             # Record the maximum index.
