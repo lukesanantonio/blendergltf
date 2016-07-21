@@ -879,7 +879,7 @@ def export_actions(actions, ctx):
     return gltf_actions
 
 
-def export_gltf(scene_delta, **ctx):
+def export_gltf(scene_delta, report_func, **ctx):
     global g_buffers
 
     shaders = {}
@@ -887,6 +887,7 @@ def export_gltf(scene_delta, **ctx):
     techniques = {}
     skinned_meshes = {}
 
+    ctx['report'] = report_func
     gltf = {
         'asset': {'version': '1.0'},
         'cameras': export_cameras(scene_delta.get('cameras', []), ctx),
