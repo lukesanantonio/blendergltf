@@ -105,8 +105,8 @@ else:
             # Mapping from object to mesh
             scene['obj_meshes'] = {}
 
-            global_matrix = axis_conversion(to_forward=self.axis_forward,
-                                            to_up=self.axis_up).to_4x4()
+            axis_matrix = axis_conversion(to_forward=self.axis_forward,
+                                          to_up=self.axis_up).to_4x4()
 
             for obj in bpy.data.objects:
                 if obj.type != 'MESH': continue
@@ -121,7 +121,7 @@ else:
                 # Transform the mesh (think: object coordinates) from mesh
                 # space to world space, then converted-axis space and then back
                 # to model space.
-                new_mesh.transform(inv_world_mat * global_matrix * obj.matrix_world)
+                new_mesh.transform(inv_world_mat * axis_matrix * obj.matrix_world)
 
                 scene['meshes'].append(new_mesh)
 
