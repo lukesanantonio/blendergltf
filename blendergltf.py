@@ -354,7 +354,7 @@ def export_materials(materials, shaders, programs, techniques, ctx):
                 }
             }
 
-        if ctx.get("use_redcrane_extensions", False) == True:
+        if ctx['use_redcrane_extensions']:
             ret['technique'] = 'cel_solid'
             # If there are any image textures that are being used
             use_cel_texture = False
@@ -363,7 +363,7 @@ def export_materials(materials, shaders, programs, techniques, ctx):
                     use_cel_texture = True
 
             # Only use a textured technique if textures were exported
-            if use_cel_texture and ctx.get("export_textures", True) == True:
+            if use_cel_texture and ctx['export_textures']:
                 ret['technique'] = 'cel_texture'
 
         return ret
@@ -933,7 +933,7 @@ def export_gltf(scene_delta, report_func, **ctx):
         'animations': {},
     }
 
-    if ctx.get('export_textures', True) == True:
+    if ctx['export_textures'] == True:
         gltf['samplers'] = {'default':{}}
         gltf['images'] = export_images(scene_delta.get('images', []), ctx)
         gltf['textures'] = export_textures(scene_delta.get('textures', []), ctx)
