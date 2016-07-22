@@ -102,6 +102,8 @@ else:
 
             # Mapping from object to mesh
             scene['obj_meshes'] = {}
+            # Mapping from mesh to properties
+            scene['mesh_props'] = {}
 
             # Copy properties to settings
             settings = self.as_keywords(ignore=("filter_glob",))
@@ -125,10 +127,21 @@ else:
                 # to model space.
                 new_mesh.transform(inv_world_mat * axis_matrix * obj.matrix_world)
 
+                # If we are dealing with a fake mesh, we won't be able to put
+                # its world transformation in a node. Therefore, put the mesh
+                # back in world coordinates now.
+                if obj.data.get(blendergltf.REDC_IS_FAKE, False):
+                    new_mesh.transform(obj.matrix_world)
+
                 scene['meshes'].append(new_mesh)
 
                 # Map objects to the proper meshes (with modifiers applied).
                 scene['obj_meshes'][obj] = new_mesh
+                # Maps new meshes to a dictionary of their properties
+                scene['mesh_props'][new_mesh] = {}
+                for key,val in obj.data.items():
+                    scene['mesh_props'][new_mesh][key] = val
+
                 scene['objects'].append(obj)
 
             settings['report'] = self.report
