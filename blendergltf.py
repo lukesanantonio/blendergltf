@@ -8,6 +8,10 @@ import collections
 import base64
 import struct
 
+REDC_IS_FAKE = 'Redc_Is_Fake'
+REDC_VERTEX_ACCESS_NAME = 'Redc_Vertex_Accessor_Name'
+REDC_INDEX_ACCESS_NAME = 'Redc_Index_Accessor_Name'
+
 # Texture formats
 GL_ALPHA = 6406
 GL_RGB = 6407
@@ -401,7 +405,7 @@ def export_materials(materials, shaders, programs, techniques, ctx):
     return exp_materials
 
 
-def export_meshes(meshes, skinned_meshes, ctx):
+def export_meshes(meshes, mesh_props, skinned_meshes, ctx):
     def triangulate(indices):
 
         # Triangulate each polygon if necessary
@@ -427,6 +431,84 @@ def export_meshes(meshes, skinned_meshes, ctx):
             itype = Buffer.UNSIGNED_INT
             istride = 4
         return itype, istride
+
+    def export_fake_mesh(me, props):
+        """Only export the buffers, bufferViews, and accessors for this mesh."""
+
+        me.calc_tessface()
+
+        # Figure out the vertex accessor name and index accessor name
+        # A none value means we'll generate a name like every other accessor,
+        # not particularly useful as it may change in the future, so log a
+        # warning.
+        vertex_access = props.get(REDC_VERTEX_ACCESS_NAME, None)
+        index_access = props.get(REDC_INDEX_ACCESS_NAME, None)
+
+        if vertex_access is None:
+            ctx['report']({'WARNING'},'Vertex accessor for fake mesh was'
+                          ' assigned a generated name that may change in the'
+                          ' future, set ' + REDC_VERTEX_ACCESS_NAME + ' to give'
+                          ' it a name.')
+        if index_access is None:
+            ctx['report']({'WARNING'},'Index accessor for fake mesh was'
+                          ' assigned a generated name that may change in the'
+                          ' future, set ' + REDC_INDEX_ACCESS_NAME + ' to give'
+                          ' it a name.')
+
+        num_loops = len(me.loops)
+
+        buf = Buffer(me.name)
+        g_buffers.append(buf)
+
+        vert_list = [Vertex(me, loop) for loop in me.loops]
+        num_verts = len(vert_list)
+
+        # Four bytes per component
+        # Three components per vertex
+        vertex_size = 4 * 3
+
+        buf_view = buf.add_view(vertex_size * num_verts)
+
+        vdata = buf.add_accessor(buf_view, 0, vertex_size, Buffer.FLOAT,
+                                 num_verts, Buffer.VEC3, vertex_access)
+        # Copy vertex data
+        for i, vtx in enumerate(vert_list):
+            vtx.index = i
+            co = vtx.co
+
+            for j in range(3):
+                vdata[(i * 3) + j] = co[j]
+
+        # Copy Index data
+        # Map (indices to) loops to vertices
+        vert_dict = {i : v for v in vert_list for i in v.loop_indices}
+
+        total_indices = []
+
+        max_vert_index = 0
+        for poly in me.polygons:
+            # First we went from loops to vertices, now we need to go in reverse
+            # because polygons store face data and use loops to express it.
+
+            # Find the vertex index associated with every loop in the polygon
+            indices = [vert_dict[i].index for i in poly.loop_indices]
+
+            # Record the maximum index.
+            for i in indices:
+                if i > max_vert_index:
+                    max_vert_index = i
+
+            total_indices += triangulate(indices)
+
+        # Now our entire index list to the buffer
+        itype, istride = get_index_type_stride(max_vert_index)
+
+        ib = buf.add_view(istride * len(total_indices))
+
+        idata = buf.add_accessor(ib, 0, istride, itype, len(total_indices),
+                                 Buffer.SCALAR, index_access)
+        for i, v in enumerate(total_indices):
+            idata[i] = v
 
     def export_mesh(me):
         # glTF data
@@ -562,8 +644,15 @@ def export_meshes(meshes, skinned_meshes, ctx):
             g_buffers.append(skin_buf)
         return gltf_mesh
 
-    return {me.name: export_mesh(me) for me in meshes}
-
+    gltf_meshes = {}
+    for me in meshes:
+        # If it is a fake mesh, export it differently
+        props = mesh_props[me]
+        if ctx['use_redcrane_extensions'] and props.get(REDC_IS_FAKE, False):
+            export_fake_mesh(me, props)
+        else:
+            gltf_meshes.update({me.name: export_mesh(me)})
+    return gltf_meshes
 
 def export_skins(skinned_meshes, ctx):
     def export_skin(obj):
@@ -725,6 +814,7 @@ def export_nodes(objects, skinned_meshes, obj_meshes, ctx):
 
 
 def export_scenes(scenes, ctx):
+    # TODO: Fix fake objects being listed as nodes in scenes.nodes
     def export_scene(scene):
         return {
             'nodes': [ob.name for ob in scene.objects if ob.parent is None],
@@ -933,6 +1023,15 @@ def export_gltf(scene_delta, report_func, **ctx):
     skinned_meshes = {}
 
     ctx['report'] = report_func
+
+    if ctx['use_redcrane_extensions']:
+        # Only use objects whose mesh is not 'fake'
+        objects = [obj for obj in scene_delta.get('objects', [])
+                   if not obj.data.get(REDC_IS_FAKE, False)]
+    else:
+        # Use all objects
+        objects = scene_delta.get('objects', [])
+
     gltf = {
         'asset': {'version': '1.0'},
         'cameras': export_cameras(scene_delta.get('cameras', []), ctx),
@@ -942,11 +1041,12 @@ def export_gltf(scene_delta, report_func, **ctx):
         },
         'materials': export_materials(scene_delta.get('materials', []),
                                       shaders, programs, techniques, ctx),
-        'nodes': export_nodes(scene_delta.get('objects', []), skinned_meshes,
-                              scene_delta.get('obj_meshes', []), ctx),
+        'nodes': export_nodes(objects, skinned_meshes,
+                              scene_delta.get('obj_meshes', {}), ctx),
         # Make sure meshes come after nodes to detect which meshes are skinned
-        'meshes': export_meshes(scene_delta.get('meshes', []), skinned_meshes,
-                                ctx),
+        'meshes': export_meshes(scene_delta.get('meshes', []),
+                                scene_delta.get('mesh_props', {}),
+                                skinned_meshes, ctx),
         'skins': export_skins(skinned_meshes, ctx),
         'programs': programs,
         'scene': bpy.context.scene.name,

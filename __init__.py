@@ -104,6 +104,8 @@ else:
 
             # Mapping from object to mesh
             scene['obj_meshes'] = {}
+            # Mapping from mesh to properties
+            scene['mesh_props'] = {}
 
             axis_matrix = axis_conversion(to_forward=self.axis_forward,
                                           to_up=self.axis_up).to_4x4()
@@ -123,15 +125,23 @@ else:
                 # to model space.
                 new_mesh.transform(inv_world_mat * axis_matrix * obj.matrix_world)
 
+                # If we are dealing with a fake mesh, we won't be able to put
+                # its world transformation in a node. Therefore, put the mesh
+                # back in world coordinates now.
+                # TODO: Use a constant for this, like the one in blendergltf.py
+                if obj.data.get(blendergltf.REDC_IS_FAKE, False):
+                    new_mesh.transform(obj.matrix_world)
+
                 scene['meshes'].append(new_mesh)
 
-                # Right now this will do, but this script requires some major
-                # restructuring because we want to be able to reference a mesh
-                # independently from its containing object. The objects should
-                # only define the node hierarchy. We can fix this by adding
-                # another layer of indirection that maps objects to their usable
-                # meshes.
+
+                # Map objects with their new mesh
                 scene['obj_meshes'][obj] = new_mesh
+                # Maps new meshes to a dictionary of their properties
+                scene['mesh_props'][new_mesh] = {}
+                for key,val in obj.data.items():
+                    scene['mesh_props'][new_mesh][key] = val
+
                 scene['objects'].append(obj)
 
             gltf = blendergltf.export_gltf(scene, self.report, **keywords)
